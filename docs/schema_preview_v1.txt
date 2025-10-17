@@ -1,0 +1,8 @@
+﻿Migrations for 'listings':
+  apps\listings\migrations\0001_initial.py
+    + Create model Listing
+  apps\listings\migrations\0002_initial.py
+    + Add field owner to listing
+Migrations for 'users':
+  apps\users\migrations\0001_initial.py
+    + Create model User
