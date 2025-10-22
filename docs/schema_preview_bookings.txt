@@ -1,0 +1,3 @@
+﻿Migrations for 'bookings':
+  apps\bookings\migrations\0001_initial.py
+    + Create model Booking

@@ -11,9 +11,9 @@ class Listing(TimeStampedModel):
         related_name="listings",
     )
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
+    description = models.TextField(blank=True, null=True)
     city = models.CharField(max_length=120)
-    district = models.CharField(max_length=120, blank=True)
+    district = models.CharField(max_length=120, blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     rooms = models.PositiveSmallIntegerField()
     type = models.CharField(max_length=20, choices=ListingType.choices)
