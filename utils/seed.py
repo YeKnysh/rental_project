@@ -10,6 +10,7 @@ from apps.listings.choices import ListingType
 from apps.bookings.models import Booking
 from apps.bookings.choices import BookingStatus
 from apps.reviews.models import Review
+from datetime import time
 
 fake = Faker()
 User = get_user_model()
@@ -85,26 +86,54 @@ def create_bookings(count=30):
         print('No tenants or listings yet')
         return
 
+    from datetime import time, timedelta
+
+    created = 0
     for _ in range(count):
         tenant = random.choice(tenants)
         listing = random.choice(listings)
-        start = fake.date_between(start_date='-30d', end_date='+5d')
-        end = fake.date_between(start_date=start, end_date='+15d')
-        if end <= start:
-            end = start  # на всякий случай
+
+        # подбираем незанятый интервал дат (без пересечений с активными бронями)
+        attempts = 0
+        while attempts < 7:
+            start = fake.date_between(start_date='-30d', end_date='+45d')
+            end = fake.date_between(start_date=start, end_date=start + timedelta(days=14))
+            if end < start:
+                end = start
+
+            conflict = Booking.objects.filter(listing=listing) \
+                .exclude(status__in=[BookingStatus.CANCELLED, BookingStatus.DECLINED]) \
+                .filter(start_date__lte=end, end_date__gte=start) \
+                .exists()
+
+            if not conflict:
+                break
+            attempts += 1
+
+        if attempts == 7:
+            # не нашли свободный слот — пропускаем эту попытку
+            continue
+
+        check_in = random.choice([time(12, 0), time(14, 0), time(15, 0)])
+        status = random.choice([
+            BookingStatus.PENDING,
+            BookingStatus.CONFIRMED,
+            BookingStatus.DECLINED,
+            BookingStatus.CANCELLED,
+        ])
+
         Booking.objects.create(
             listing=listing,
             tenant=tenant,
             start_date=start,
             end_date=end,
-            status=random.choice([
-                BookingStatus.PENDING,
-                BookingStatus.CONFIRMED,
-                BookingStatus.DECLINED,
-                BookingStatus.CANCELLED,
-            ]),
+            check_in_time=check_in,
+            status=status,
         )
-    print(f'{count} bookings created')
+        created += 1
+
+    print(f'{created} bookings created')
+
 
 
 def set_basic_permissions():

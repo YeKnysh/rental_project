@@ -49,6 +49,11 @@ INSTALLED_APPS = [
     'apps.reviews.apps.ReviewsConfig',
     'apps.booking_statistics.apps.BookingStatisticsConfig',
     'apps.common.apps.CommonConfig',
+
+    'rest_framework',
+    'django_filters',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 ]
 
 MIDDLEWARE = [
@@ -59,6 +64,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'rental_project.urls'
@@ -136,3 +142,32 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',  # для /api/schema и /api/docs
+
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ],
+
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+
+    # чтобы в Swagger можно было логиниться по сессии (через /api-auth/login/)
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
+    # опционально: если хочешь по умолчанию открытые эндпоинты
+    # 'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+}
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@rental.local'
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Rental API',
+    'DESCRIPTION': 'Listings, Bookings, Reviews, Statistics',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,  # схему отдельно отдаём по /api/schema/
+}
