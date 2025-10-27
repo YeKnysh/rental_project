@@ -1,6 +1,7 @@
-from rest_framework import viewsets, permissions, filters
+from rest_framework import viewsets, filters
 import django_filters.rest_framework as drf_filters
 
+from apps.common.permissions import IsAuthorOrReadOnly
 from .models import Review
 from .serializers import ReviewSerializer
 from drf_spectacular.utils import (
@@ -17,23 +18,6 @@ class ReviewFilter(drf_filters.FilterSet):
     class Meta:
         model = Review
         fields = ['listing', 'rating_min', 'rating_max']
-
-
-class IsAuthorOrReadOnly(permissions.BasePermission):
-    """
-    Read for everyone.
-    Write only for authenticated users.
-    Object-level: only the author can modify their own review.
-    """
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        return request.user and request.user.is_authenticated
-
-    def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        return obj.author_id == getattr(request.user, 'id', None)
 
 
 @extend_schema_view(
@@ -68,5 +52,4 @@ class ReviewViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'rating']
 
     def perform_create(self, serializer):
-        # set author to current user
         serializer.save(author=self.request.user)

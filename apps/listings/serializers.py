@@ -8,10 +8,14 @@ class ListingSerializer(serializers.ModelSerializer):
 
     Notes:
     - `owner` is read-only; it is set from the request user on create.
+    - `listing_id` is a read-only alias of `id` to avoid confusion in Swagger/UI.
     """
+    # Явный алиас, чтобы в ответе было видно и `id`, и `listing_id`
+    listing_id = serializers.IntegerField(source='id', read_only=True, help_text='Alias of `id` (Listing ID)')
 
     class Meta:
         model = Listing
+        # __all__ включает модельные поля (включая `id`), а объявленное вручную `listing_id` добавляется сверху
         fields = '__all__'
         read_only_fields = ('owner', 'created_at', 'updated_at')
         extra_kwargs = {
@@ -21,7 +25,7 @@ class ListingSerializer(serializers.ModelSerializer):
             'district': {'help_text': 'District'},
             'price': {'help_text': 'Price per period'},
             'rooms': {'help_text': 'Number of rooms'},
-            'type': {'help_text': 'Listing type (choices)'},
+            'listing_type': {'help_text': 'Listing type (choices)'},
             'is_active': {'help_text': 'Visible in catalog'},
         }
 
@@ -31,10 +35,11 @@ class ListingSerializer(serializers.ModelSerializer):
         return value
 
     def validate_rooms(self, value):
-        if value is not None and value < 0:
-            raise serializers.ValidationError('Rooms must be ≥ 0')
+        if value is not None and not (1 <= value <= 20):
+            raise serializers.ValidationError('Rooms must be between 1 and 20')
         return value
 
     def update(self, instance, validated_data):
-        validated_data.pop('owner', None)  # не даём менять владельца через сериализатор
+        # Не даём менять владельца через PATCH/PUT
+        validated_data.pop('owner', None)
         return super().update(instance, validated_data)

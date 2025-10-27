@@ -1,14 +1,25 @@
 from django.core.mail import send_mail
 from django.conf import settings
 
+
 def notify_booking_status(booking):
-    """Отправляем письмо арендатору о смене статуса (в консоль)."""
-    if not booking.tenant.email:
+    """
+    Send status email to the tenant.
+    Called from apps.bookings.signals on create and on status change.
+    """
+    email = getattr(booking.tenant, 'email', None)
+    if not email:
         return
-    subject = f'Booking #{booking.id}: {booking.status}'
+
+    # human-readable choice label
+    status_label = booking.get_status_display()
+
+    subject = f'Booking #{booking.pk}: {status_label}'
     message = (
         f'Listing: {booking.listing.title}\n'
         f'Dates: {booking.start_date} — {booking.end_date}\n'
-        f'Status: {booking.status}'
+        f'Status: {status_label}'
     )
-    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [booking.tenant.email], fail_silently=True)
+    sender = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
+
+    send_mail(subject, message, sender, [email], fail_silently=True)

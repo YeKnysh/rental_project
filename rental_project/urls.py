@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic.base import RedirectView
-from rental_project import settings
+from django.contrib.auth import views as auth_views
 
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -11,6 +11,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
+from apps.users.forms import EmailAuthenticationForm
 from rental_project import settings
 
 
@@ -24,7 +25,12 @@ api_v1 = [
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api-auth/', include('rest_framework.urls')),
+
+    # DRF browsable API auth (поле Email)
+    path('api-auth/login/', auth_views.LoginView.as_view(
+        authentication_form=EmailAuthenticationForm
+    ), name='login'),
+    path('api-auth/logout/', auth_views.LogoutView.as_view(), name='logout'),
 
     # OpenAPI schema & docs
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
