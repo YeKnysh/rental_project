@@ -1,4 +1,10 @@
-from rest_framework import viewsets, filters
+# apps/listings/views.py
+"""
+Listings API:
+- List/Retrieve — public
+- Create/Update/Delete — only for authenticated users; owner-only on objects
+"""
+from rest_framework import viewsets, filters, permissions
 from django_filters.rest_framework import (
     DjangoFilterBackend, FilterSet, NumberFilter, CharFilter
 )
@@ -96,8 +102,9 @@ error_400_example = OpenApiExample(
         request=ListingSerializer,
         responses={
             201: ListingSerializer,
-            400: OpenApiTypes.OBJECT,  # validation error schema
-            403: OpenApiTypes.OBJECT,  # forbidden / auth required
+            400: OpenApiTypes.OBJECT,
+            401: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT,
         },
         examples=[create_example, error_400_example],
     ),
@@ -105,28 +112,33 @@ error_400_example = OpenApiExample(
         tags=["listings"],
         summary="Update a listing",
         request=ListingSerializer,
-        responses={200: ListingSerializer, 400: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT},
+        responses={200: ListingSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT},
         examples=[update_example, error_400_example],
     ),
     partial_update=extend_schema(
         tags=["listings"],
         summary="Partially update a listing",
         request=ListingSerializer,
-        responses={200: ListingSerializer, 400: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT},
+        responses={200: ListingSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT},
         examples=[update_example, error_400_example],
     ),
     destroy=extend_schema(
         tags=["listings"],
         summary="Delete a listing",
-        responses={204: None, 403: OpenApiTypes.OBJECT},
+        responses={204: None, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT},
     ),
 )
 class ListingViewSet(viewsets.ModelViewSet):
-    """Manage property listings.
-    List/retrieve: public. Create/update/delete: owner only."""
+    """
+    Listings API.
+    List/retrieve — public.
+    Create/update/delete — auth required; object-level checks ensure owner-only changes.
+    """
     queryset = Listing.objects.all().select_related("owner")
     serializer_class = ListingSerializer
-    permission_classes = [IsOwnerOrReadOnly]
+
+    # Требуем аутентификацию на write-методы + объектная проверка владельца.
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ListingFilter
@@ -135,4 +147,5 @@ class ListingViewSet(viewsets.ModelViewSet):
     ordering = ["-created_at"]
 
     def perform_create(self, serializer):
+        """Bind owner to the current user on create."""
         serializer.save(owner=self.request.user)

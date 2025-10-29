@@ -1,9 +1,10 @@
+# apps/reviews/urls.py
 from rest_framework.routers import DefaultRouter
 from .views import ReviewViewSet
 
 app_name = "apps.reviews"
 
 router = DefaultRouter()
-router.register(r'reviews', ReviewViewSet, basename='review')
+router.register(r"reviews", ReviewViewSet, basename="reviews")
 
 urlpatterns = router.urls

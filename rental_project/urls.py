@@ -2,8 +2,6 @@
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic.base import RedirectView
-from django.contrib.auth import views as auth_views
 
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -11,34 +9,45 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
-from apps.users.forms import EmailAuthenticationForm
 from rental_project import settings
-
+from rental_project.redirects import (
+    HomeRedirectView,
+    SwaggerShortcutRedirect,
+    SchemaRedirect,
+    RedocRedirect,
+    AdminShortcutRedirect,
+    AdminMeRedirectView,     # ← добавили
+)
 
 api_v1 = [
-    path('api/v1/', include('apps.users.urls')),
-    path('api/v1/', include('apps.listings.urls')),
-    path('api/v1/', include('apps.bookings.urls')),
-    path('api/v1/', include('apps.booking_statistics.urls')),
-    path('api/v1/', include('apps.reviews.urls')),
+    path("api/v1/", include("apps.users.urls")),
+    path("api/v1/", include("apps.listings.urls")),
+    path("api/v1/", include("apps.bookings.urls")),
+    path("api/v1/", include("apps.booking_statistics.urls")),
+    path("api/v1/", include("apps.reviews.urls")),
 ]
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Админка
+    path("admin/", admin.site.urls),
+    path("admin", AdminShortcutRedirect.as_view(), name="admin-short"),
+    path("admin/me/", AdminMeRedirectView.as_view(), name="admin-me"),  # ← новый удобный редирект
 
-    # DRF browsable API auth (поле Email)
-    path('api-auth/login/', auth_views.LoginView.as_view(
-        authentication_form=EmailAuthenticationForm
-    ), name='login'),
-    path('api-auth/logout/', auth_views.LogoutView.as_view(), name='logout'),
+    # DRF login/logout (сессии)
+    path("api-auth/", include("rest_framework.urls")),
 
     # OpenAPI schema & docs
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 
-    # root redirect
-    path('', RedirectView.as_view(url='/admin/', permanent=False)),
+    # Быстрые сокращения и корневой редирект
+    path("", HomeRedirectView.as_view(), name="home"),
+    path("docs", SwaggerShortcutRedirect.as_view(), name="docs-short"),
+    path("swagger", SwaggerShortcutRedirect.as_view(), name="swagger-short"),
+    path("openapi", SchemaRedirect.as_view(), name="openapi-short"),
+    path("schema", SchemaRedirect.as_view(), name="schema-short"),
+    path("redoc", RedocRedirect.as_view(), name="redoc-short"),
 ] + api_v1
 
 if settings.DEBUG:

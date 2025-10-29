@@ -36,7 +36,11 @@ def ensure_groups_permissions():
 
 
 def ensure_user(email, *, username=None, password="Pass123!", groups=(), is_staff=False, is_superuser=False):
-    u, _ = User.objects.get_or_create(email=email, defaults={"username": username or email.split("@")[0]})
+    base_username = (username or email.split("@")[0]).strip() or "user"
+    u, _ = User.objects.get_or_create(email=email.lower().strip(), defaults={"username": base_username})
+    # make sure username is set (if user existed without it)
+    if not u.username:
+        u.username = base_username
     if password:
         u.set_password(password)
     u.is_staff = is_staff
@@ -104,7 +108,7 @@ def seed_min():
     )
 
     # CONFIRMED (base)
-    Booking.objects.get_or_create(
+    Booking.objects.update_or_create(
         listing=l1,
         tenant=cust1,
         start_date=_future(7),
@@ -112,7 +116,7 @@ def seed_min():
         defaults={"check_in_time": time(14, 0), "status": BookingStatus.CONFIRMED},
     )
     # PENDING on the same listing but WITHOUT overlap
-    Booking.objects.get_or_create(
+    Booking.objects.update_or_create(
         listing=l1,
         tenant=cust1,
         start_date=_future(12),
@@ -120,7 +124,7 @@ def seed_min():
         defaults={"check_in_time": time(15, 0), "status": BookingStatus.PENDING},
     )
     # DECLINED
-    Booking.objects.get_or_create(
+    Booking.objects.update_or_create(
         listing=l2,
         tenant=cust1,
         start_date=_future(16),
@@ -128,7 +132,7 @@ def seed_min():
         defaults={"check_in_time": time(12, 0), "status": BookingStatus.DECLINED},
     )
     # CANCELLED
-    Booking.objects.get_or_create(
+    Booking.objects.update_or_create(
         listing=l3,
         tenant=cust1,
         start_date=_future(20),
@@ -136,7 +140,7 @@ def seed_min():
         defaults={"check_in_time": time(14, 0), "status": BookingStatus.CANCELLED},
     )
     # EXTRA: short CONFIRMED for the 2nd review
-    Booking.objects.get_or_create(
+    Booking.objects.update_or_create(
         listing=l2,
         tenant=cust1,
         start_date=_future(25),
@@ -144,12 +148,20 @@ def seed_min():
         defaults={"check_in_time": time(12, 0), "status": BookingStatus.CONFIRMED},
     )
 
-    # Reviews use field "comment" in your model
+    # Reviews (allowed thanks to confirmed bookings)
     Review.objects.update_or_create(
         listing=l1, author=cust1, defaults={"rating": 5, "comment": "Great stay, very clean!"}
     )
     Review.objects.update_or_create(
         listing=l2, author=cust1, defaults={"rating": 4, "comment": "Nice flat, would visit again."}
+    )
+
+    print(
+        "Seed OK\n"
+        "  Admin    : admin@example.com / Admin123!\n"
+        "  Owner #1 : owner1@example.com / Owner123!\n"
+        "  Owner #2 : owner2@example.com / Owner123!\n"
+        "  Customer : customer1@example.com / Customer123!\n"
     )
 
 

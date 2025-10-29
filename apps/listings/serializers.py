@@ -1,3 +1,4 @@
+# apps/listings/serializers.py
 from rest_framework import serializers
 from .models import Listing
 
@@ -7,15 +8,19 @@ class ListingSerializer(serializers.ModelSerializer):
     Listing payload.
 
     Notes:
-    - `owner` is read-only; it is set from the request user on create.
-    - `listing_id` is a read-only alias of `id` to avoid confusion in Swagger/UI.
+    - `owner` не редактируется через API (ставится на create из request.user).
+    - `listing_id` — удобный alias к `id`, чтобы в UI не путаться.
     """
-    # Явный алиас, чтобы в ответе было видно и `id`, и `listing_id`
-    listing_id = serializers.IntegerField(source='id', read_only=True, help_text='Alias of `id` (Listing ID)')
+    # явный alias, чтобы в ответах было и id, и listing_id
+    listing_id = serializers.IntegerField(
+        source='id',
+        read_only=True,
+        help_text='Alias of `id` (Listing ID)'
+    )
 
     class Meta:
         model = Listing
-        # __all__ включает модельные поля (включая `id`), а объявленное вручную `listing_id` добавляется сверху
+        # __all__ подтянет все модельные поля (включая id), а listing_id добавляем явно
         fields = '__all__'
         read_only_fields = ('owner', 'created_at', 'updated_at')
         extra_kwargs = {
@@ -29,6 +34,7 @@ class ListingSerializer(serializers.ModelSerializer):
             'is_active': {'help_text': 'Visible in catalog'},
         }
 
+    # простые проверки на уровне сериализатора
     def validate_price(self, value):
         if value is not None and value < 0:
             raise serializers.ValidationError('Price must be ≥ 0')
@@ -40,6 +46,6 @@ class ListingSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        # Не даём менять владельца через PATCH/PUT
+        # не даём менять владельца через PATCH/PUT
         validated_data.pop('owner', None)
         return super().update(instance, validated_data)

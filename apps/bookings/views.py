@@ -24,7 +24,7 @@ class BookingFilter(drf_filters.FilterSet):
     """Filters for bookings list."""
     # основной параметр
     listing_id = drf_filters.NumberFilter(field_name="listing_id")
-    # алиас для обратной совместимости (можно удалить позже)
+    # алиас для обратной совместимости
     listing = drf_filters.NumberFilter(field_name="listing_id")
 
     status = drf_filters.CharFilter(field_name="status", lookup_expr="exact")
@@ -60,47 +60,23 @@ error_400_example = OpenApiExample(
         summary="List bookings",
         description="Filtered and paginated list of bookings.",
         parameters=[
-            OpenApiParameter(
-                "listing_id", type=int, location=OpenApiParameter.QUERY,
-                description="Filter by listing id"
-            ),
-            # оставляем alias 'listing' как вспомогательный (можно убрать позже)
-            OpenApiParameter(
-                "listing", type=int, location=OpenApiParameter.QUERY,
-                description="Same as listing_id (alias)"
-            ),
-            OpenApiParameter(
-                "status", type=str, location=OpenApiParameter.QUERY,
-                description="Booking status"
-            ),
-            OpenApiParameter(
-                "start_min", type=str, location=OpenApiParameter.QUERY,
-                description="Start date ≥ (YYYY-MM-DD)"
-            ),
-            OpenApiParameter(
-                "start_max", type=str, location=OpenApiParameter.QUERY,
-                description="Start date ≤ (YYYY-MM-DD)"
-            ),
-            OpenApiParameter(
-                "ordering", type=str, location=OpenApiParameter.QUERY,
-                description="start_date, -start_date, created_at, -created_at"
-            ),
+            OpenApiParameter("listing_id", type=int, location=OpenApiParameter.QUERY, description="Filter by listing id"),
+            OpenApiParameter("listing", type=int, location=OpenApiParameter.QUERY, description="Same as listing_id (alias)"),
+            OpenApiParameter("status", type=str, location=OpenApiParameter.QUERY, description="Booking status"),
+            OpenApiParameter("start_min", type=str, location=OpenApiParameter.QUERY, description="Start date ≥ (YYYY-MM-DD)"),
+            OpenApiParameter("start_max", type=str, location=OpenApiParameter.QUERY, description="Start date ≤ (YYYY-MM-DD)"),
+            OpenApiParameter("ordering", type=str, location=OpenApiParameter.QUERY,
+                             description="start_date, -start_date, created_at, -created_at"),
         ],
         responses={200: BookingSerializer(many=True)},
     ),
-    retrieve=extend_schema(
-        tags=["bookings"], summary="Retrieve a booking", responses={200: BookingSerializer}
-    ),
+    retrieve=extend_schema(tags=["bookings"], summary="Retrieve a booking", responses={200: BookingSerializer}),
     create=extend_schema(
         tags=["bookings"],
         summary="Create a booking",
         description="Tenant creates a booking request.",
         request=BookingSerializer,
-        responses={
-            201: BookingSerializer,
-            400: OpenApiTypes.OBJECT,
-            403: OpenApiTypes.OBJECT,
-        },
+        responses={201: BookingSerializer, 400: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT},
         examples=[create_example, error_400_example],
     ),
     update=extend_schema(
@@ -113,9 +89,7 @@ error_400_example = OpenApiExample(
         request=BookingSerializer,
         responses={200: BookingSerializer, 400: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT},
     ),
-    destroy=extend_schema(
-        tags=["bookings"], summary="Delete a booking", responses={204: None, 403: OpenApiTypes.OBJECT}
-    ),
+    destroy=extend_schema(tags=["bookings"], summary="Delete a booking", responses={204: None, 403: OpenApiTypes.OBJECT}),
 )
 class BookingViewSet(viewsets.ModelViewSet):
     """
@@ -139,7 +113,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         """Assign current user as tenant on create."""
         serializer.save(tenant=self.request.user)
 
-    # ---- confirm ----
+    # ---- confirm (owner) ----
     @extend_schema(
         operation_id="booking_confirm",
         tags=["bookings"],
@@ -160,12 +134,12 @@ class BookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[IsListingOwner])
     def confirm(self, request, pk=None):
         booking = self.get_object()
+        # важно: на кастомных action проверяем объектные права явно
+        self.check_object_permissions(request, booking)
 
         if booking.status in {BookingStatus.CANCELLED, BookingStatus.DECLINED}:
-            return Response(
-                {"detail": "Cannot confirm a cancelled or declined booking."},
-                status=http_status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": "Cannot confirm a cancelled or declined booking."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
 
         conflict = Booking.objects.filter(
             listing=booking.listing,
@@ -174,16 +148,14 @@ class BookingViewSet(viewsets.ModelViewSet):
             end_date__gte=booking.start_date,
         ).exclude(pk=booking.pk).exists()
         if conflict:
-            return Response(
-                {"detail": "Overlaps with an existing confirmed booking."},
-                status=http_status.HTTP_409_CONFLICT,
-            )
+            return Response({"detail": "Overlaps with an existing confirmed booking."},
+                            status=http_status.HTTP_409_CONFLICT)
 
         booking.status = BookingStatus.CONFIRMED
         booking.save(update_fields=["status"])
         return Response(BookingSerializer(booking).data, status=http_status.HTTP_200_OK)
 
-    # ---- decline ----
+    # ---- decline (owner) ----
     @extend_schema(
         operation_id="booking_decline",
         tags=["bookings"],
@@ -199,6 +171,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[IsListingOwner])
     def decline(self, request, pk=None):
         booking = self.get_object()
+        self.check_object_permissions(request, booking)
 
         if booking.status == BookingStatus.DECLINED:
             return Response({"detail": "Already declined."}, status=http_status.HTTP_400_BAD_REQUEST)
@@ -224,12 +197,12 @@ class BookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[IsTenantOrReadOnly])
     def cancel(self, request, pk=None):
         booking = self.get_object()
+        self.check_object_permissions(request, booking)
 
         if booking.status in {BookingStatus.CANCELLED, BookingStatus.DECLINED}:
             return Response({"detail": "Already cancelled or declined."}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        today = timezone.localdate()
-        if today >= booking.start_date:
+        if timezone.localdate() >= booking.start_date:
             return Response({"detail": "Too late to cancel."}, status=http_status.HTTP_400_BAD_REQUEST)
 
         booking.status = BookingStatus.CANCELLED

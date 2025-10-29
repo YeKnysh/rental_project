@@ -16,22 +16,23 @@ class ListingBriefSerializer(serializers.ModelSerializer):
 
 class BookingSerializer(serializers.ModelSerializer):
     """
-    Booking payload (stable).
+    Booking payload.
 
-    Response:
-      - booking_id: booking PK
-      - listing_id: listing PK
+    Response includes:
+      - booking_id: booking PK (alias of `id`)
+      - listing_id: FK value to the listing
       - listing_info: compact listing card (city/district/etc.)
       - tenant_id / tenant_email
       - listing_owner_email
+
     Rules:
       - On create -> PENDING.
       - Status changes only via actions (/confirm, /decline, /cancel).
-      - Listing cannot be changed by update.
+      - Listing cannot be changed on update.
       - Overlaps are allowed on create; conflicts are checked on /confirm.
     """
 
-    # explicit ids (no source=... to avoid DRF assertion)
+    # explicit ids (Django model exposes <fk>_id attributes, so no source needed)
     booking_id = serializers.IntegerField(source="id", read_only=True)
     listing_id = serializers.IntegerField(read_only=True)
     tenant_id = serializers.IntegerField(read_only=True)
@@ -92,8 +93,10 @@ class BookingSerializer(serializers.ModelSerializer):
         start = attrs.get("start_date", getattr(instance, "start_date", None))
         end = attrs.get("end_date", getattr(instance, "end_date", None))
 
+        # start not in the past
         if start and start < timezone.localdate():
             raise serializers.ValidationError({"start_date": "start_date must be today or later"})
+        # end >= start
         if start and end and end < start:
             raise serializers.ValidationError({"end_date": "end_date must be >= start_date"})
         # overlaps intentionally not checked here (handled on /confirm)
@@ -101,14 +104,17 @@ class BookingSerializer(serializers.ModelSerializer):
 
     # ---- create/update rules ----
     def create(self, validated_data):
+        # enforce initial state
         validated_data["status"] = BookingStatus.PENDING
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
+        # status is controlled only via actions
         if "status" in validated_data and validated_data["status"] != instance.status:
             raise serializers.ValidationError({
                 "status": "Use /bookings/{id}/confirm, /decline or /cancel to change status."
             })
+        # listing cannot be changed after creation
         if "listing" in validated_data:
             raise serializers.ValidationError({"listing": "Listing cannot be changed"})
         return super().update(instance, validated_data)

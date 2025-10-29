@@ -1,4 +1,3 @@
-# rental_project/settings.py
 from pathlib import Path
 import os
 import environ
@@ -25,7 +24,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    # our apps
+    # project apps
     "apps.users.apps.UsersConfig",
     "apps.listings.apps.ListingsConfig",
     "apps.bookings.apps.BookingsConfig",
@@ -75,19 +74,18 @@ WSGI_APPLICATION = "rental_project.wsgi.application"
 DATABASES = {
     "default": dj_database_url.config(
         env="DATABASE_URL",
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",  # используется ТОЛЬКО если переменной нет
-        conn_max_age=0,  # <-- это мы поменяли (было 600). База остаётся той, что в DATABASE_URL (MySQL)
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=0,
     )
 }
 
-
-# ---- auth / users ----
+# ---- users / auth ----
 AUTH_USER_MODEL = "users.User"
 
-# login по e-mail
+# логин по email
 AUTHENTICATION_BACKENDS = [
-    "apps.users.backends.EmailModelBackend",        # email + password
-    "django.contrib.auth.backends.ModelBackend",    # fallback (админка и т.п.)
+    "apps.users.backends.EmailModelBackend",
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -109,7 +107,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# WhiteNoise: сжатые и хешированные статики для продакшена
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -121,26 +118,52 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
 
-    # ВАЖНО: приоритет basicAuth над сессией, чтобы Swagger не цеплял admin sessionid
+    # ТОЛЬКО сессии. Никакого Basic → не будет нативной браузерной всплывашки.
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.BasicAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
+        "apps.common.auth.DevSessionAuthentication",
     ],
 }
 
 # ---- email ----
-EMAIL_BACKEND = env(
-    "EMAIL_BACKEND",
-    default="django.core.mail.backends.console.EmailBackend",
-)
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@rental.local")
 
-# ---- drf-spectacular ----
+# ---- drf-spectacular / Swagger ----
 SPECTACULAR_SETTINGS = {
     "TITLE": "Rental API",
     "DESCRIPTION": "Listings, Bookings, Reviews, Statistics",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    # чтобы не выбрасывало авторизацию при перезагрузках UI
-    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+
+    # ВАЖНО: руками добавляем cookieAuth, чтобы в UI появилась кнопка Authorize
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "sessionid",
+            }
+        }
+    },
+    # применяем ко всем операциям по умолчанию
+    "APPEND_SECURITY_REQUIREMENTS": [{"cookieAuth": []}],
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+    },
+}
+
+# ---- logging (консоль) ----
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {"format": "%(levelname)s %(asctime)s %(name)s:%(lineno)d %(message)s"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "verbose"},
+    },
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO"},
+        "apps": {"handlers": ["console"], "level": "DEBUG", "propagate": False},
+    },
 }
